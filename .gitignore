@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime data and secrets
+.env
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.gemini/
+
+# Generated captures
+screenshots/
+.freebuff/
+reference/
+*.pdf
+*.log
+.env.*
+!.env.example

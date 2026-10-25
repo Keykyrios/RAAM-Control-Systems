@@ -1,0 +1,77 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-raam_control}
+      POSTGRES_USER: ${POSTGRES_USER:-raam}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-replace-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - raam_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raam} -d ${POSTGRES_DB:-raam_control}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  vision:
+    build:
+      context: ./vision_provider
+    environment:
+      VISION_PROVIDER_API_KEY: ${VISION_PROVIDER_API_KEY:-local-vision-key-change-me}
+      VISION_MAX_IMAGE_BYTES: ${VISION_MAX_IMAGE_BYTES:-10485760}
+      VISION_MAX_PROCESS_SIDE: ${VISION_MAX_PROCESS_SIDE:-1600}
+      VISION_MODEL_VERSION: ${VISION_MODEL_VERSION:-raam-opencv-evidence-1.0.0}
+      VISION_EVIDENCE_DIR: /data/evidence
+    volumes:
+      - raam_evidence:/data/evidence
+    expose:
+      - "8100"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      APP_NAME: ${APP_NAME:-RAAM Spare-Parts Control}
+      environment: ${environment:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-raam}:${POSTGRES_PASSWORD:-replace-me}@db:5432/${POSTGRES_DB:-raam_control}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+      DEMO_MODE: ${DEMO_MODE:-true}
+      VISION_PROVIDER_URL: ${VISION_PROVIDER_URL:-http://vision:8100/analyze}
+      VISION_PROVIDER_API_KEY: ${VISION_PROVIDER_API_KEY:-local-vision-key-change-me}
+      VISION_MAX_IMAGE_BYTES: ${VISION_MAX_IMAGE_BYTES:-10485760}
+      VISION_PROVIDER_TIMEOUT_SECONDS: ${VISION_PROVIDER_TIMEOUT_SECONDS:-30}
+      VISION_MAX_CONCURRENT_REQUESTS: ${VISION_MAX_CONCURRENT_REQUESTS:-3}
+      VISION_ALLOW_HTTPS_EVIDENCE: ${VISION_ALLOW_HTTPS_EVIDENCE:-false}
+      LIVE_CAMERA_MIN_INTERVAL_MS: ${LIVE_CAMERA_MIN_INTERVAL_MS:-1500}
+      LIVE_CAMERA_DEFAULT_INTERVAL_MS: ${LIVE_CAMERA_DEFAULT_INTERVAL_MS:-4000}
+      LIVE_CAMERA_MAX_INTERVAL_MS: ${LIVE_CAMERA_MAX_INTERVAL_MS:-30000}
+      SECRET_KEY: ${SECRET_KEY:-replace-me-before-deployment}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      vision:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  raam_pgdata:
+  raam_evidence:
